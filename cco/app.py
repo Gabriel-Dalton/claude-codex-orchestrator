@@ -20,8 +20,10 @@ def canonical(path):
 
 def quote(value):
     if os.name == "nt":
-        # Orca's default Windows shell is PowerShell, not Command Prompt.
-        return "'" + str(value).replace("'", "''") + "'"
+        # The Windows shell Orca starts may be Command Prompt or PowerShell.
+        # Double quotes work in both; single quotes reach the program literally in Command Prompt.
+        text = str(value).replace("\\", "/")
+        return '"' + text + '"' if re.search(r"[^A-Za-z0-9_./:\-]", text) else text
     return shlex.quote(str(value))
 
 

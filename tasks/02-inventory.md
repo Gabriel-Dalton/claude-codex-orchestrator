@@ -26,3 +26,7 @@ Invented fixtures for the Codex model list, a rollout rate limit record and the 
 ## Done
 
 All tests pass. On this machine `python -m cco inventory` lists Codex with its models and `python -m cco usage` shows a reading for Codex. Run the privacy search from `AGENTS.md`. Write `tasks/02-inventory.report.md`: what was built, where the real files differed from what this task says, and what stayed unknown.
+
+## Two fixes made by the reviewer after the first build, to cover with tests
+
+Using the tool for real on Windows found two faults that the fake did not: the folder was quoted with single quotes, which Command Prompt passes through literally, so the agent failed to start; and `peek` crashed printing screen characters the console code page lacks. Both are fixed in `cco/app.py` (`quote`) and `cco/cli.py` (`main`). Add tests for each, and make `launch` report clearly when the agent program exits straight back to a shell prompt instead of saying only that the prompt is not ready.
