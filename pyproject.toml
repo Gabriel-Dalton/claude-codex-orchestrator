@@ -1,0 +1,15 @@
+[build-system]
+requires = []
+build-backend = "cco.build"
+backend-path = ["."]
+
+[project]
+name = "cco"
+version = "0.1.0"
+description = "Claude Codex Orchestrator: local orchestration through Orca terminals"
+requires-python = ">=3.11"
+dependencies = []
+license = "MIT"
+
+[project.scripts]
+cco = "cco.cli:main"

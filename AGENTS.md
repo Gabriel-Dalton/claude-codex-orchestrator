@@ -1,4 +1,4 @@
-# baton
+# Claude Codex Orchestrator
 
 A small command line tool and a Claude Code skill that let one Claude Code session direct several Codex agents running in Orca terminals: launch them, know which model each one has, know when each is done, and stop them. Claude Code briefs and checks; Codex does the work.
 
@@ -26,7 +26,7 @@ These come from real failures. Each has a test.
 
 ## Layout
 
-- `baton/`: the package. `orca.py` is the only module that knows Orca's command line; `codex.py` the only one that knows Codex's screen; everything else goes through them.
+- `cco/`: the package. `orca.py` is the only module that knows Orca's command line; `codex.py` the only one that knows Codex's screen; everything else goes through them.
 - `tests/`: `unittest`, run with `python -m unittest`. A fake `orca` script stands in for the real one, so the tests need neither Orca nor Codex.
 - `skill/SKILL.md`: the playbook for Claude Code.
 - `templates/`: task file templates.
