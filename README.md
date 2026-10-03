@@ -77,6 +77,8 @@ cco stop AGENT_ID
 
 | Command | Purpose |
 | --- | --- |
+| `inventory [--json]` | List providers, sign-in status, models, classes and efforts. |
+| `usage [--json]` | Show usage windows, pace, reset times, freshness and budget states. |
 | `doctor [--start]` | Find Orca and Codex, show tiers, list terminals by folder; optionally start Orca. |
 | `launch --dir FOLDER --task FILE --tier easy\|standard\|hard` | Launch and confirm the task prompt. |
 | `launch ... [--model ID] [--effort LEVEL] [--title TITLE]` | Override tier settings or the terminal title. |
@@ -84,7 +86,7 @@ cco stop AGENT_ID
 | `list [--all]` | Show owned agents and their current state; optionally list foreign terminal metadata. |
 | `wait ID [ID ...] --done SIGNAL [--timeout MINUTES] [--interval SECONDS]` | Wait for every selected agent. Defaults: 30 minutes, 2-second polling. |
 | `peek ID [--lines N]` | Read the last N screen lines; default 20. |
-| `send ID "TEXT"` | Send and verify a follow-up to a ready agent. |
+| `send ID "TEXT"` | Send a follow-up; queue it when the agent is working. |
 | `stop ID` or `stop --all-mine` | Close only recorded, matching terminal incarnations. |
 | `task new --kind fix\|feature\|docs\|review --out PATH` | Create a task template without overwriting an existing file. |
 
@@ -110,19 +112,51 @@ unavailable screens are conservatively `needs-input`.
 | hard | `gpt-6-astra` | medium | Design, site-wide changes, costly logic mistakes. |
 
 These are the requested defaults, not a claim about availability or measured
-quality. `cco.toml` in the current working folder takes precedence over the
-user configuration at `%APPDATA%/cco/cco.toml` on Windows or
-`${XDG_CONFIG_HOME:-~/.config}/cco/cco.toml` elsewhere. Missing values use the
-built-in defaults. The checked-in file illustrates the full configuration.
+quality. By default, configuration is read only from the user configuration at
+`%APPDATA%/cco/cco.toml` on Windows or
+`${XDG_CONFIG_HOME:-~/.config}/cco/cco.toml` elsewhere. A working-folder
+`cco.toml` is ignored with a notice on stderr. Use `--config <path>` or
+`CCO_CONFIG` to explicitly trust a file. The flag takes precedence over the
+environment variable. An explicitly selected missing file is an error.
+Missing settings use built-in defaults.
 
 The default `agent_command` is
 `codex -m {model} -c model_reasoning_effort={effort}`. CCO appends `-C <folder>`
 so fallback terminals still start in the requested directory. Include `{dir}`
-in a custom command template to control directory placement yourself. Model
-and effort values must be simple identifiers. Directory quoting assumes
-PowerShell on Windows and a POSIX shell elsewhere. Configure the command
-explicitly for a different shell. Configuration is executable local input;
-review a repository's `cco.toml` before launching from it.
+in a custom command template to control directory placement yourself. This
+command can execute shell code, so only trusted configuration can supply it.
+Model, effort and provider identifiers must match `^[A-Za-z0-9._:-]+$`, including
+command-line overrides.
+
+Before quoting, folder paths, task paths and terminal titles are restricted to
+ASCII letters, digits, spaces, underscore, dot, hyphen, forward slash, backslash,
+colon, parentheses, plus, comma, at sign and tilde. Other characters are refused
+with the offending character named. This prevents expansion by either Windows
+shell. Windows uses double quotes; other systems use POSIX shell quoting. Task
+pointers are sent as terminal input through Orca arguments, not shell commands.
+
+Inventory and usage do not require Orca. Codex models come from
+`CODEX_HOME/models_cache.json` (default `~/.codex`), and usage comes from the
+newest session rollout. Claude models default to `fable`, `opus`, `sonnet` and
+`haiku`; efforts remain unknown unless configured. Claude usage requires
+`cswap list --json`. Generic agents report unknown models and usage unless
+configured; installed local Ollama models have no subscription limit.
+
+The checked-in `cco.toml` is an example that must be explicitly selected.
+`[providers.claude]` accepts `models` and `efforts` lists. Other providers accept
+a `models` list of names or inline tables with `name`, `description` and
+`efforts`. `[classes.PROVIDER]` maps quoted model names to `fast`, `workhorse`
+or `frontier`. Overrides take precedence over a description with one recognized
+class, then the built-in name table. Unclassified models are listed as unusable.
+Claude and generic adapters cannot launch yet. Inventory does not change tier
+selection or add routing.
+
+`[budget]` sets `tight_remaining_percent` (30),
+`critical_remaining_percent` (10), and `max_age_seconds` (3600). The worst window
+governs. Missing or stale readings are unknown. Pace compares usage to elapsed
+window percentage; an explicit exhaustion projection before reset is critical.
+Source timestamps determine age, not the time CCO read the file. Account names,
+emails and organizations are excluded from inventory and usage output.
 
 State is `agents.json` under `%LOCALAPPDATA%/cco` on Windows or
 `${XDG_STATE_HOME:-~/.local/state}/cco` elsewhere. It never goes in the target
@@ -154,7 +188,7 @@ removing `mutation.lock` in that state folder.
   reused. CCO does not adopt foreign terminals.
 - Custom commands can change the launched program, but verified interactive
   submission and idle detection currently understand Codex screens only.
-- `task new` is local and works without Orca. Other commands report when Orca
+- `task new`, `inventory` and `usage` work without Orca. Terminal commands report when Orca
   is unavailable. `doctor --start` uses Orca's own app launcher.
 - The permitted live shell test created and closed its terminal, but the screen
   was unavailable, so output verification did not pass. Real Codex launches,

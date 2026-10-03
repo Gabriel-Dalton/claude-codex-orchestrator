@@ -39,8 +39,12 @@ state naming, and the self-test title. The local directory was not renamed.
 - `git diff --check` passed. A scan of repository source, including hidden
   project files, found no old product name, real local user paths, account or
   project identifiers observed during discovery, email addresses, token
-  patterns, or em dashes. Generated Python caches were removed. Git's internal
-  metadata was excluded from the publishable-file scan and left untouched.
+  patterns, or em dashes. Generated Python caches are ignored and were excluded
+  from the source scan. Automatic approval review rejected both recursive cache
+  cleanup and a narrower deletion of generated .pyc files as blocked by policy.
+  Those caches remain locally and may embed interpreter source paths; they must
+  not be published. Git's internal metadata was excluded from the publishable-file
+  scan and left untouched.
 
 ## CLI differences and observations
 

@@ -15,7 +15,7 @@ METADATA = "Metadata-Version: 2.4\nName: cco\nVersion: 0.1.0\nSummary: Claude Co
 
 def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
     name = "cco-0.1.0-py3-none-any.whl"
-    files = {"cco/" + p.name: p.read_bytes() for p in (ROOT / "cco").glob("*.py")}
+    files = {p.relative_to(ROOT).as_posix(): p.read_bytes() for p in (ROOT / "cco").rglob("*.py")}
     files.update({"cco/templates/" + p.name: p.read_bytes() for p in (ROOT / "templates").glob("*.md")})
     files.update({
         DIST + "/METADATA": METADATA.encode(),
@@ -41,7 +41,7 @@ def build_sdist(sdist_directory, config_settings=None):
     name = "cco-0.1.0.tar.gz"
     Path(sdist_directory).mkdir(parents=True, exist_ok=True)
     with tarfile.open(Path(sdist_directory) / name, "w:gz") as archive:
-        for pattern in ("cco/*.py", "templates/*.md", "tests/*.py", "docs/*.md", "skill/*.md", "*.toml", "README.md", "LICENSE"):
+        for pattern in ("cco/**/*.py", "templates/*.md", "tests/**/*.py", "tests/fixtures/*", "docs/*.md", "skill/*.md", "*.toml", "README.md", "LICENSE"):
             for path in ROOT.glob(pattern):
                 archive.add(path, arcname="cco-0.1.0/" + path.relative_to(ROOT).as_posix())
     return name

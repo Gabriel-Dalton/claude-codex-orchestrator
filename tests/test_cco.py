@@ -78,6 +78,72 @@ class OrchestrationTests(unittest.TestCase):
         self.assertIn("task.md", prompt)
         self.assertNotIn("One invented task", prompt)
 
+    def test_clean_start_placeholder_is_not_a_draft(self):
+        self.update(draft="Ask Codex to do anything")
+        self.launch()
+        sends = [c for c in self.data()["calls"] if c[:2] == ["terminal", "send"]]
+        self.assertEqual(len(sends), 1)
+        self.assertIn("task.md", sends[0][sends[0].index("--text") + 1])
+
+    def test_real_draft_still_blocks_submission(self):
+        self.update(draft="Do another task")
+        with self.assertRaisesRegex(ValueError, "has a draft"):
+            self.launch()
+        self.assertFalse(any(c[:2] == ["terminal", "send"] for c in self.data()["calls"]))
+
+    def test_shell_exit_is_reported(self):
+        self.update(screen="Agent failed to start\nC:\\code\\example-app>")
+        with self.assertRaisesRegex(ValueError, "exited back to a shell prompt"):
+            self.launch()
+        self.assertEqual(len(self.app.state.read()), 1)
+
+    def test_send_queues_during_work(self):
+        agent = self.launch()
+        self.update(calls=[])
+        self.app.send(agent, "Read FOLLOWUP.md")
+        sends = [c for c in self.data()["calls"] if c[:2] == ["terminal", "send"]]
+        self.assertEqual(len(sends), 1)
+        self.assertEqual(sends[0][sends[0].index("--text") + 1], "Read FOLLOWUP.md")
+
+    def test_peek_with_limited_console_encoding(self):
+        from cco.cli import main
+        agent = self.launch()
+        self.update(screen="\u203a \u2603 \U0001f680")
+        buffer = io.BytesIO()
+        output = io.TextIOWrapper(buffer, encoding="ascii")
+        with patch("cco.cli.Orca", return_value=self.orca), patch("cco.cli.State", return_value=self.app.state), \
+                patch("sys.stdout", output):
+            self.assertEqual(main(["peek", agent]), 0)
+            output.flush()
+            self.assertIn("\u2603", buffer.getvalue().decode("utf-8"))
+        output.detach()
+
+    def test_queue_no_turn_start_retries_only_enter(self):
+        agent = self.launch()
+        self.update(calls=[], retry=True)
+        self.app.send(agent, "Read FOLLOWUP.md")
+        sends = [c for c in self.data()["calls"] if c[:2] == ["terminal", "send"]]
+        self.assertEqual(len(sends), 2)
+        self.assertNotIn("--text", sends[1])
+
+    def test_launch_refuses_hostile_identifiers_before_orca(self):
+        for key in ("model", "effort"):
+            with self.assertRaisesRegex(ValueError, "must match"):
+                self.launch(**{key: ""})
+        for char in ";&|` ":
+            for key in ("model", "effort"):
+                with self.subTest(char=char, key=key), self.assertRaisesRegex(ValueError, "must match"):
+                    self.launch(**{key: "example" + char + "bad"})
+        self.assertNotIn("calls", self.data())
+
+    def test_launch_refuses_unsafe_paths_and_title_before_orca(self):
+        for key in ("folder", "task", "title"):
+            values = {"folder": self.folder, "task": "task.md", "title": "example"}
+            values[key] = str(values[key]) + "$"
+            with self.subTest(key=key), self.assertRaisesRegex(ValueError, "character"):
+                self.app.launch(tier="easy", **values)
+        self.assertNotIn("calls", self.data())
+
     def test_trust_prompt_before_task(self):
         self.update(trust=True, screen="Do you trust this folder?\n1. Yes, proceed\n2. No, exit")
         self.launch()
@@ -230,14 +296,15 @@ class OrchestrationTests(unittest.TestCase):
             with contextlib.redirect_stderr(io.StringIO()):
                 self.assertEqual(main(["task", "new", "--kind", "fix", "--out", target]), 1)
 
-    def test_user_config_and_current_folder_precedence(self):
+    def test_user_config_and_explicit_local_selection(self):
         user = self.root / "config"
         user.mkdir()
         (user / "cco.toml").write_text('[tiers.easy]\nmodel="example-user-model"\n', encoding="utf-8")
         with patch("cco.config.Path.cwd", return_value=self.folder), patch("cco.config.user_folder", return_value=user):
             self.assertEqual(load()["tiers"]["easy"]["model"], "example-user-model")
             (self.folder / "cco.toml").write_text('[tiers.easy]\nmodel="example-local-model"\n', encoding="utf-8")
-            self.assertEqual(load()["tiers"]["easy"]["model"], "example-local-model")
+            self.assertEqual(load()["tiers"]["easy"]["model"], "example-user-model")
+            self.assertEqual(load(self.folder / "cco.toml")["tiers"]["easy"]["model"], "example-local-model")
             self.assertEqual(load()["tiers"]["hard"]["model"], "gpt-6-astra")
 
 
@@ -251,6 +318,7 @@ class PackagingTests(unittest.TestCase):
             with zipfile.ZipFile(wheel) as archive:
                 self.assertIsNone(archive.testzip())
                 self.assertIn("cco/templates/fix.md", archive.namelist())
+                self.assertIn("cco/providers/codex.py", archive.namelist())
                 self.assertIn(b"cco = cco.cli:main", archive.read("cco-0.1.0.dist-info/entry_points.txt"))
                 archive.extractall(Path(folder) / "unpacked")
             env = dict(os.environ, PYTHONPATH=str(Path(folder) / "unpacked"))

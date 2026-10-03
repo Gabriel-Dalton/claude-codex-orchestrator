@@ -11,6 +11,8 @@ import time
 import uuid
 
 from . import codex
+from .providers.codex import Codex, draft_text, queue
+from .providers.base import require_identifier
 from .orca import OrcaError, OrcaGone, TerminalGone
 
 
@@ -19,12 +21,19 @@ def canonical(path):
 
 
 def quote(value):
+    validate_shell_value(value)
     if os.name == "nt":
         # The Windows shell Orca starts may be Command Prompt or PowerShell.
         # Double quotes work in both; single quotes reach the program literally in Command Prompt.
         text = str(value).replace("\\", "/")
         return '"' + text + '"' if re.search(r"[^A-Za-z0-9_./:\-]", text) else text
     return shlex.quote(str(value))
+
+
+def validate_shell_value(value):
+    for char in str(value):
+        if not re.fullmatch(r"[A-Za-z0-9 _./\\:()+,@~\-]", char):
+            raise ValueError(f"Unsafe shell path or title character: {char!r}")
 
 
 class App:
@@ -72,23 +81,26 @@ class App:
 
     def launch(self, folder, task, tier, model=None, effort=None, title=None,
                force=False, dry_run=False, *, submit_prompt=True):
+        for value in (folder, task, title or "cco-" + tier):
+            validate_shell_value(value)
         folder = Path(folder).expanduser().resolve()
         task = Path(task).expanduser()
         if not task.is_absolute():
             task = folder / task
         task = task.resolve()
+        for value in (folder, task):
+            validate_shell_value(value)
         if not folder.is_dir() or not task.is_file() or not task.is_relative_to(folder):
             raise ValueError("Task must be an existing file inside the target folder")
         if any(c in str(task) for c in "\r\n"):
             raise ValueError("Task path must fit on one line")
         chosen = self.config["tiers"][tier]
-        model, effort = model or chosen["model"], effort or chosen["effort"]
-        if not all(isinstance(v, str) and re.fullmatch(r"[\w.-]+", v) for v in (model, effort)):
-            raise ValueError("Model and effort must be simple identifiers")
+        model = chosen["model"] if model is None else model
+        effort = chosen["effort"] if effort is None else effort
+        require_identifier(model)
+        require_identifier(effort)
         template = self.config["agent_command"]
-        command = template.format(model=model, effort=effort, dir=quote(folder))
-        if "{dir}" not in template:
-            command += " -C " + quote(folder)
+        command = Codex().command(folder, model, effort, template=template, quote=quote)
         prompt = f"Read {json.dumps(str(task), ensure_ascii=False)}, follow it, and write the requested report."
         with self.state.locked():
             terminals = self.orca.terminals()
@@ -162,8 +174,16 @@ class App:
         with self.state.locked():
             record = self.owned(agent_id)
             self.require_live(record)
-            codex.submit(self.orca, record["terminal"], text)
-        print("Submission confirmed")
+            screen = self.orca.read(record["terminal"])
+            if codex.classify(screen) == "working" and not draft_text(screen):
+                # Codex accepts follow-up messages during a turn. Never retry text.
+                if queue(self.orca, record["terminal"], text):
+                    print("Message queued during the active turn")
+                else:
+                    raise ValueError("Queue submission was not confirmed; inspect with peek before sending again")
+            else:
+                codex.submit(self.orca, record["terminal"], text)
+                print("Submission confirmed")
 
     def stop(self, agent_id=None, all_mine=False):
         with self.state.locked():

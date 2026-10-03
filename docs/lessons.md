@@ -68,3 +68,26 @@ uses Orca terminal sessions instead of launching Codex through captured pipes.
 The automated suite never launches a real agent. The permitted live check used
 one plain shell command and closed only the terminal it created; Orca returned
 an unavailable screen, so the shell output could not be verified.
+
+## Repository configuration is untrusted input
+
+A repository can supply a hostile `agent_command` or shell fragments in model
+settings. Loading a working-folder config implicitly would execute that code.
+Only the user config folder is trusted by default. Working-folder `cco.toml`
+is ignored with a one-line notice unless selected with `--config` or
+`CCO_CONFIG`. Review explicitly selected files. All model, effort and provider
+names must match `^[A-Za-z0-9._:-]+$` even in trusted config and CLI overrides.
+
+Double quotes alone do not prevent shell expansion. PowerShell expands dollar
+expressions and backticks, while Command Prompt expands percent variables.
+CCO refuses shell paths and titles outside its conservative allow list before
+quoting, on every platform. It names the rejected character. Windows folder
+quotes are double quotes, since Command Prompt passes single quotes literally.
+
+## Empty placeholders and active turns need distinct handling
+
+Orca can return the empty Codex placeholder as draft text. A recognized empty
+placeholder permits submission; real drafts remain protected. A launch that
+returns to a shell prompt reports that the program exited. `send` can queue a
+follow-up during a working turn without launching or waiting for another turn.
+Console streams use UTF-8 with replacement so `peek` can print screen symbols.

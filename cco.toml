@@ -1,4 +1,4 @@
-# Local configuration takes precedence over the user's config file.
+# Example configuration. Trust it explicitly with --config cco.toml.
 # Include {dir} to control directory placement for a different agent or shell.
 # Otherwise cco appends Codex's -C <folder> argument.
 agent_command = "codex -m {model} -c model_reasoning_effort={effort}"
@@ -6,6 +6,19 @@ agent_command = "codex -m {model} -c model_reasoning_effort={effort}"
 [tiers.easy]
 model = "gpt-5.6-luna"
 effort = "medium"
+
+[budget]
+tight_remaining_percent = 30
+critical_remaining_percent = 10
+max_age_seconds = 3600
+
+[providers.claude]
+models = ["fable", "opus", "sonnet", "haiku"]
+# Set efforts only when supported by your installed version.
+
+# Per-provider class overrides, for example:
+# [classes.claude]
+# fable = "frontier"
 
 [tiers.standard]
 model = "gpt-5.6-terra"

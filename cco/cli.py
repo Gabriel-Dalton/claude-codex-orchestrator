@@ -21,7 +21,11 @@ def positive(value):
 
 def parser():
     p = argparse.ArgumentParser(prog="cco")
+    p.add_argument("--config", help="Explicitly trust a configuration file")
     commands = p.add_subparsers(dest="command", required=True)
+    for name in ("inventory", "usage"):
+        command = commands.add_parser(name)
+        command.add_argument("--json", action="store_true")
     doctor = commands.add_parser("doctor")
     doctor.add_argument("--start", action="store_true")
     launch = commands.add_parser("launch")
@@ -52,6 +56,9 @@ def parser():
     new = task.add_parser("new")
     new.add_argument("--kind", choices=("fix", "feature", "docs", "review"), required=True)
     new.add_argument("--out", required=True)
+    for command in commands.choices.values():
+        command.add_argument("--config", default=argparse.SUPPRESS,
+                             help="Explicitly trust a configuration file")
     return p
 
 
@@ -62,7 +69,12 @@ def main(argv=None):
             stream.reconfigure(encoding="utf-8", errors="replace")
     args = parser().parse_args(argv)
     try:
-        cfg = load()
+        cfg = load(args.config)
+        if args.command in ("inventory", "usage"):
+            from .inventory import collect, render
+            usage = args.command == "usage"
+            render(collect(cfg, usage=usage), usage=usage, as_json=args.json)
+            return 0
         if args.command == "task":
             # This local-only command remains useful without Orca installed.
             source = Path(__file__).parent / "templates" / (args.kind + ".md")

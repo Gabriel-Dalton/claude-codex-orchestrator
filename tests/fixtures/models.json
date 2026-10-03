@@ -1,0 +1,1 @@
+{"models": [{"slug": "example-frontier", "description": "A frontier model. Contact fixture@example.com at Invented Workshop.", "supported_reasoning_levels": [{"effort": "low", "description": "Quick"}, {"effort": "high", "description": "Careful"}]}, {"slug": "example-unclassified", "description": "An experimental model", "supported_reasoning_levels": []}]}
